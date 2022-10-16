@@ -1,9 +1,8 @@
 Template
 ========
-
-.. image:: http://unmaintained.tech/badge.svg
-  :target: http://unmaintained.tech
-  :alt: No Maintenance Intended
+.. image:: https://readthedocs.org/projects/temp-test/badge/?version=latest
+    :target: https://temp-test.readthedocs.io/zh_CN/latest/?badge=latest
+    :alt: Documentation Status
 
 *Note: This template is not maintained anymore,
 use the* `tutorial <https://github.com/readthedocs/tutorial-template/>`_ *instead.*

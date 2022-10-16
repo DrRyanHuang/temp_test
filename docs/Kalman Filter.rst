@@ -13,11 +13,11 @@ Kalman Filter
    x_k = Ax_{k-1} + Bu_{k-1} + w_{k-1}
 
 其中，
-- :math:`x`是系统的状态向量，`shape`为`(n, 1)`
-- :math:`A`是状态转换矩阵，`shape`为`(n, n)`
-- :math:`u`是系统的输入，`shape`为`(k, 1)`
-- :math:`B`是将输入转化为状态的矩阵，`shape`为`(n, k)`
-- :math:`w`是系统噪声，`shape`为`(n, 1)`
+- :math:`x` 是系统的状态向量，`shape`为`(n, 1)`
+- :math:`A` 是状态转换矩阵，`shape`为`(n, n)`
+- :math:`u` 是系统的输入，`shape`为`(k, 1)`
+- :math:`B` 是将输入转化为状态的矩阵，`shape`为`(n, k)`
+- :math:`w` 是系统噪声，`shape`为`(n, 1)`
 
 
 :math:`\frac{ \sum_{t=0}^{N}f(t,k) }{N}`
