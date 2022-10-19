@@ -59,6 +59,29 @@ We find it :red:`important` to use IoU alone as the Similarity#2 in the second a
 
 Thus, when apply BYTE to other Re-ID based trackers [47, 69, 85], we do not adopt appearance similarity in the second association.
 
+
+在TransTrack的推理过程中引入了Track Rebirth，以增强对遮挡和短期消失的鲁棒性。 具体来说，如果跟踪框不匹配，它将保持为“非活动”跟踪框，直到K个连续帧保持不匹配为止。无效的跟踪框可以与检测框匹配并重新获得其ID。 类似于《Tracking objects as points》，本文选择K = 32。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 :math:`\mathcal{Hello test}`
 :math:`\mathtt{Hello test}`
 :math:`\mathsf{Hello test}`

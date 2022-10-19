@@ -15,7 +15,8 @@ Contents:
    :glob:
 
    *
-
+   ./Lane Detection/*
+   ./Combinatorial optimization/*
 
 
 Indices and tables
