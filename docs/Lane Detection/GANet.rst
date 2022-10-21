@@ -120,3 +120,240 @@ Contributions
 - Segmentation-based methods
 - Detection-based methods
 - Keypoint-based methods
+
+Method
+------------------
+
+方法概述
+^^^^^^^^^^^^^^^^
+
+.. image:: ../images/1.GANet_archit.png
+
+**Encoder**:
+
+- Given a front-viewed image as input, a CNN backbone together with an FPN [12] neck is adopted to extract multi-level visual representations of the input images. 
+
+- For better feature learning, a self-attention layer is further inserted between the backbone and the neck to :blue:`obtain rich context information`.
+
+
+**Decoder**:
+
+a keypoint head and an offset head are exploited to generate confidence map and offset map respectively.
+(两个头都是 fully convolutional layers)
+
+这里如何获得一个车道线实例呢?
+
+- For each lane instance, we first obtain its starting point as cluster centroid by selecting points with value less than 1 over the offset map. 
+
+- Afterward, keypoints belonging to the same lane are clustered around the sampled starting point with the combination of the confidence map and offset map to construct the complete lane line.
+
+(这俩句说的啥啊..... 来看下我下边的解释)
+
+- 找到 offset map 上值小于 1 的点, 这些点很可能是 starting point, 之后以起始点作为中心进行聚类, 能聚到一起的就是一个车道线实例 :blue:`(` 不知道是这个意思不 :blue:`)`
+
+
+Method
+^^^^^^^^^^^^^^^^
+
+输入图是 :math:`I \in \mathbb{R}^{H \times W \times 3}`
+
+GANet 目标是预测车道线的集合 :math:`L=\{l_1, l_2, ..., l_N\}`, :math:`N` 是车道线数
+
+每条车道线 :math:`l_i` 采样 :math:`K` 个kpt:
+
+.. math::
+    l_i = \{ p_i^1, p_i^2, ..., p_i^K \}_{i=1}^K
+
+:math:`p_i^j = (x_i^j, y_i^j)` 为第 :math:`i` 条车道线的第 :math:`j` 个 KPT.
+
+To estimate(评估) all the keypoints, we develop a keypoint head to produce a confidence map :math:`\hat{Y} \in \mathbb{R}^{\frac{H}{r} \times \frac{W}{r}}`, where :math:`r` is the output stride.
+
+The confidence map represents the probability of each location being a keypoint on the lane.
+
+
+
+
+
+
+
+
+
+以上是模型方案, 接下来说如何构造置信度 map GT
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+我们在每条车道线采样 :math:`K` 个KPT, 将其 splat 到一个置信度map :math:`Y \in \mathbb{R}^{\frac{H}{r} \times \frac{W}{r}}` 来作为GT.
+
+怎么 splat 呢? 用一个非标准高斯核:
+
+.. math:: 
+    Y_{yx} = exp(
+        -\frac{
+            (x-\tilde{x})^2 + (y-\tilde{y})^2
+        }{
+            2 \sigma^2
+        }
+    )
+
+:red:`(此处需要看代码确认)`, :math:`\tilde{x}` 和 :math:`\tilde{y}` 是每个KPT的坐标, :math:`\sigma` 取决于图片的scale.
+
+If there is overlap between two Gaussian maps, we take the element-wise maximum between them.
+
+:blue:`(意思好像是每个sample的KPT有一个高斯map, 然后所有的高斯map叠加, 有重叠取最大而不是求和)`
+
+
+
+
+
+
+
+
+车道线重建
+^^^^^^^^^^^^^^^^
+
+.. image:: ../images/1.Lane_construction.png
+
+先对置信度 map :math:`\hat{Y}` 做 :math:`1 \times 3` 的 max pooling. 
+
+to select :blue:`[` points of maximum responses within a horizontal local region :blue:`]` as valid keypoints (选择水平局部区域内的最大响应点作为有效关键点) 如上图(a).
+
+首先找 starting point 即可, 找 offset map 上值小于 1 的点, 如果在某个局部区域有多个, 则取其几何中心作为 starting point.
+
+找到起始点, 其余KPT只需要根据 offset :math:`O_{xy}` 进行匹配即可.
+
+
+Lane-aware Feature Aggregator
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2D卷积无法 handle slender(细长) shapes of lane lines
+
+Lane-aware Feature Aggregator (LFA) module 的作用: enhance the local feature representation of
+each keypoint. 
+
+.. image:: ../images/1.LFA.png
+
+We first use a convolution layer to predict the offset between it and its surrounded :math:`M` keypoints on the same lane as follows:
+
+
+.. math:: 
+    \Delta P_i = \phi( \mathcal{F} (p_i) )
+
+- :math:`p_i` 是第 :math:`i` 个 KPT 的坐标值
+- :math:`\mathcal{F}(p_i)` 是第 :math:`i` 个KPT的特征表示
+- :math:`\Delta P_i = \{ \Delta p_i^m | m=1,...,m \} \in \mathbb{R}^{2M}` 是预测的偏移量
+
+Afterwards, features of adjacent points are integrated with a deformable convolution to aggregate context of the :math:`i`-th keypoint as:
+
+.. math:: 
+    \hat{\mathcal{F}} = \sum_{m=1}^M w_m \cdot \mathcal{F}( p_i + \Delta p_i^m )
+
+- :math:`w_m` 是卷积的权重, :math:`m=1,...,M`
+
+接下来引入一个辅助loss来监督偏移量 :math:`\Delta P_i`, 监督 :math:`\Delta P_i` 需要GT, 如何构造呢?
+
+.. math:: 
+    \Delta G_i = \{  \Delta g_i^k | k=1,...,K  \}
+
+- :math:`\Delta g_i^k = g_i^k - p_i`
+- :math:`g_i^k` 是与第 :math:`i` 个关键点在同一车道线上的第 :math:`k` 个关键点的真实坐标。
+
+
+
+
+
+
+
+
+
+
+匹配
+^^^^^^^^^^^^^^^^
+
+:math:`\Delta p_i` 和 :math:`\Delta g_i` 需要建立一个匹配
+
+.. math::
+    \hat{\sigma} = \arg \min_\sigma 
+    \sum_{m}^M \mathcal{L}_{match} (\Delta p_i^m, \Delta g_i^{\sigma(m)} )
+
+where,
+
+- :math:`\mathcal{L}_{match} = L_2( \Delta p_i^m, \Delta g_i^{\sigma (m)} )`
+
+文章使用匈牙利算法去做匹配, SmoothL1 loss 去监督相邻关键点的预测
+
+.. math:: 
+    \mathcal{L}_{aux} = \frac{1}{KNM}
+    \sum_{i=1}^{KN}
+    \sum_{m=1}^{M}
+    SmoothL1(
+        \Delta p_i^m, 
+        \Delta g_i^{\sigma (m)}
+    )
+
+- :math:`K` denotes the number of keypoints on each lane line,
+- :math:`N` denotes the number of lane lines  (:red:`x`) 啥意思这是
+- :math:`M` denotes the number of sampled adjacent keypoints.
+
+.. image:: ../images/1.match.png
+
+
+Illustration of the matching between predict points and their ground truth. The red dot is the observed keypoint. The blue dots are the predicted locations of adjacent keypoints. The green dots are the ground-truth locations of adjacent keypoints on the lane line.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+损失函数
+^^^^^^^^^^^^^^^^
+
+- keypoint regions 与 non-keypoint regions 之间的 focal loss
+- address the quantization error, 预测量化误差的loss (原图为了简洁没画) L1 loss 
+- offset 的loss L1 loss. (该loss只监督 KPT 而不监督其他点) (xy两个通道) (每个实例上的KPT到起点的偏移)
+
+.. math:: 
+    \mathcal{L}_{offset} = \frac
+    {1}
+    {H' \times W'}
+    \sum_{yx}
+        | \hat{O}_{yx} - O_{yx}|
+
+
+- 以及上边监督局部偏移的辅助loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
