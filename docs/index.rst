@@ -17,6 +17,7 @@ Contents:
    *
    ./Lane Detection/*
    ./Combinatorial optimization/*
+   ./MOT/*
 
 
 Indices and tables
