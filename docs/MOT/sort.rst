@@ -42,7 +42,7 @@ Furthermore, issues regarding short-term and long-term occlusion are also ignore
 We argue that incorporating complexity in the form of object re-identification adds significant overhead into the tracking framework, potentially limiting its use in realtime applications.
 目标重识别会增加跟踪框架的开销, 潜在地限制实时应用
 
-This design philosophy is in contrast to many proposed visual trackers that incorporate :math:`[`a myriad of :math:`]` :blue:`(无数的)`  components to handle various edge cases and detection errors.
+This design philosophy is in contrast to many proposed visual trackers that incorporate :blue:`[` a myriad of :blue:`]` :green:`(无数的)`  components to handle various edge cases and detection errors.
 这一设计理念与众多之前的 tracker 想抵触, 之前的 tracker 引入无数的组件来处理众多不常出现的情况以及检测出现的异常.
 
 This work instead focuses on efficient and reliable handling of the common frame-to-frame associations.
@@ -77,4 +77,4 @@ In addition to appearance models, motion is often incorporated(被引入) to ass
 - 但是这种两步关联将这种限制为批量计算(我觉的就是并行的意思)。
 
 
-3. METHODOLOGY
+**METHODOLOGY**
