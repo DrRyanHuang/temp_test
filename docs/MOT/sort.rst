@@ -78,3 +78,104 @@ In addition to appearance models, motion is often incorporated(被引入) to ass
 
 
 **METHODOLOGY**
+
+Detection
+**********
+
+The proposed method is described by 
+
+- the key components of detection, 
+- propagating object states into future frames, (将当前目标状态传播到下一帧, 其实就是使用卡尔曼滤波预测下一帧中目标位置)
+- associating current detections with existing objects, and 
+- managing the lifespan of tracked objects. (管理被跟踪对象的生命周期)
+
+本文为了利用快速发展的基于 CNN 的检测器, 于是使用了 Faster RCNN.
+
+    The first stage extracts features and proposes regions for the second stage which then classifies the object in the proposed region.
+
+Faster RCNN 的一大优势是两阶段参数共享
+
+
+As we are only interested in pedestrians we ignore all other classes and only pass person detection results with output probabilities greater than 50% to the tracking framework.
+(忽略其他类, 只把概率大于 50% 的结果送给跟踪器框架)
+
+原文用 ``FrRCNN(ZF)`` 、 ``FrRCNN(VGG16)`` 和 ``ACF(Aggregate Channel Filter)`` 做了比较:
+    we found that the detection quality has a significant impact on tracking performance when comparing the FrRCNN detections to ACF detections.
+
+FrRCNN(VGG16) 的表现使得 ``MDP`` 和 ``SORT`` 的效果都很好.
+
+
+Estimation Model(估计模型下一帧的位置)
+****************************************
+
+We approximate the inter-frame displacements(帧间位移) of each object with a linear constant velocity model which is independent of other objects and camera motion.
+
+每一个目标的状态建模为:
+
+.. math::
+    \bf{x} = [u, v, s, r, \dot{u}, \dot{v}, \dot{s}]^T
+
+:math:`u` 和 :math:`v` 是目标中心水平和竖直方向的像素位置, 而 :math:`s` 和 :math:`r` 分别代码边界框的面积与纵横比.
+
+Note that the aspect ratio is considered to be constant !!!
+
+- When a detection is associated to a target, the detected bounding box is used to update the target state where the velocity components are solved optimally via a Kalman filter framework.
+- 当新检测结果与目标相关联时，检测到的边界框用于更新目标状态，其中速度分量通过卡尔曼滤波器框架进行求解.
+
+- If no detection is associated to the target, its state is simply predicted without correction using the linear velocity model.
+- 如果没有与目标相关联的新检测结果, 则只需使用线速度模型对其状态进行预测, 而无需进行校正.
+
+
+Data Association
+******************
+
+当前的所有目标都 通过上一帧的位置 来估计 当前帧的位置, 之后与当前帧的检测结果进行匹配.
+是的, 就是用之前提到的匈牙利算法进行匹配, cost矩阵是已有目标与预测出来的当前位置的IoU距离.
+
+Additionally, a minimum IOU is imposed to reject assignments where the detection to target overlap is less than :math:`IoU_{min}`.
+当检测结果与已有目标的IoU小于 :math:`IoU_{min}` 时, 则无需进行匹配.
+
+文章发现边界框的 IoU 距离隐含地处理了由通过的其他目标引起的短期遮挡。
+
+后边这都是啥????? 啥意思这是:
+
+- Specifically, when a target is covered by an occluding object, only the occluder is detected, since the IOU distance appropriately favours detections with similar scale. 
+- This allows both the occluder target to be corrected with the detection while the covered target is unaffected as no assignmentm is made.
+
+
+Creation and Deletion of Track Identities
+******************************************************
+
+When objects enter and leave the image, unique identities need to be created or destroyed accordingly.
+
+**Create 轨迹**
+
+本文认为, 任何 重叠率低于 :math:`IoU_{min}` 的检测结果都是一个未跟踪的目标.
+
+The tracker is initialised using the geometry of the bounding box with the velocity set to zero.
+轨迹初始化, 用第一帧的边界框位置初始化, 速度设置为0.
+
+Since the velocity is unobserved at this point(此时) the covariance(协方差) of the velocity component is initialised with large values, reflecting this uncertainty. 
+(由于此时未观察到速度，因此将速度分量的协方差初始化为较大的值，反映了这种不确定性)
+
+
+Additionally, the new tracker then undergoes a probationary period where the target needs to be associated with detections to accumulate enough evidence in order to prevent tracking of false positives.
+(此外, 新的跟踪器随后会经历一段试用期, 在此期间, 目标需要与检测相关联, 以积累足够的证据, 以防止跟踪误报。) :blue:`[不知道代码中有没有体现]`
+
+**Delete 轨迹**
+
+Tracks are terminated if they are not detected for :math:`T_{Lost}` frames.
+
+This prevents an unbounded growth in the number of trackers and localisation errors caused by predictions over long durations without corrections from the detector.
+(避免轨迹的数量无限制增长 同时 避免由于长时间线性预测而没有检测器矫正而引起的错误)
+
+文章中 :math:`T_{Lost}=1` 有两个原因:
+
+- 本文使用的是匀速模型(the constant velocity model), 无法很好的预测出真实状态
+- 其次, 本文工作主要是 frame-to-frame tracking, object re-identification 不是本文的工作范围(beyond the scope of this work).
+- Additionally, early deletion of lost targets aids efficiency. (早期删除丢失目标有助于提升效率??? 你要不都删了吧, 这效率多高[狗头])
+
+
+Should an object reappear, tracking will implicitly resume under a new identity. :red:`[倒装句强调]`
+如果一个之前小时的目标重新出现, 跟踪将隐式地在一个新Id下出现.
+

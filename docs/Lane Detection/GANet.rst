@@ -331,9 +331,22 @@ Illustration of the matching between predict points and their ground truth. The 
 
 
 
+TuSimple 数据集
+^^^^^^^^^^^^^^^^
 
+- 高速公路图片数据集
+- 3626张训练图、2782张测试图
+- TuSimple 的主要评价指标是准确率:
 
+.. math:: 
+    accuracy = \frac
+    {\sum_{clip} C_{cilp}}
+    {\sum_{clip} S_{cilp}}
 
+- :math:`C_{clip}` is the number of points correctly predicted by the model  
+- :math:`S_{clip}`` is the total number of points in the clip(or image)
+- A predicted point is considered correct only if it is within 20 pixels to the ground truth point.
+- 预测车道线准确率大于 85% 视为真正例
 
 
 
